@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table &amp; Vine — Big Y Franklin</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Table & Vine">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3B6D11">
+<style>
+  :root { --tv-accent: #3B6D11; --tv-accent-light: #EAF3DE; --tv-accent-text: #27500A; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  #app { padding: 0.75rem; font-family: system-ui, sans-serif; }
+  .header { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .header-logo { width: 36px; height: 36px; background: var(--tv-accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .header-logo svg { width: 20px; height: 20px; fill: white; }
+  .header-title { font-size: 17px; font-weight: 500; }
+  .header-sub { font-size: 12px; color: #888; }
+  .tab-bar { display: flex; gap: 6px; margin-bottom: 1rem; }
+  .tab { flex: 1; padding: 8px 4px; font-size: 12px; font-weight: 500; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #888; cursor: pointer; text-align: center; }
+  .tab.active { background: #EAF3DE; border-color: #3B6D11; color: #27500A; }
+  .scan-area { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+  .scan-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .scan-row input { flex: 1; height: 40px; font-size: 14px; border-radius: 8px; border: 1px solid #ddd; padding: 0 10px; background: #f5f5f5; }
+  .scan-btn { height: 40px; padding: 0 14px; background: #3B6D11; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .cam-btn { height: 40px; width: 40px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .cam-btn svg { width: 20px; height: 20px; fill: none; stroke: #333; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .scan-hint { font-size: 12px; color: #888; }
+  .camera-view { display: none; margin-bottom: 1rem; border-radius: 12px; overflow: hidden; position: relative; background: #000; }
+  .camera-view.active { display: block; }
+  .camera-view video { width: 100%; display: block; max-height: 240px; object-fit: cover; }
+  .camera-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .scan-frame { width: 200px; height: 100px; border: 2px solid rgba(255,255,255,0.8); border-radius: 8px; position: relative; }
+  .scan-frame::before, .scan-frame::after { content: ''; position: absolute; width: 20px; height: 20px; border-color: #fff; border-style: solid; }
+  .scan-frame::before { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+  .scan-frame::after { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+  .scan-line { position: absolute; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.7); animation: scanline 2s linear infinite; }
+  @keyframes scanline { 0% { top: 0; } 100% { top: 100%; } }
+  .camera-stop { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; pointer-events: all; }
+  .camera-status { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 12px; color: rgba(255,255,255,0.85); pointer-events: none; }
+  .unsupported-msg { background: #f5f5f5; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #888; margin-bottom: 1rem; display: none; }
+  .product-card { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+  .product-name { font-size: 15px; font-weight: 500; margin-bottom: 2px; }
+  .product-meta { font-size: 12px; color: #888; margin-bottom: 1rem; }
+  .loc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 1rem; }
+  .loc-cell { background: #f5f5f5; border-radius: 8px; padding: 10px 8px; text-align: center; }
+  .loc-label { font-size: 11px; color: #888; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .loc-controls { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .loc-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #ddd; background: #fff; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .loc-count { font-size: 18px; font-weight: 500; min-width: 24px; text-align: center; }
+  .save-btn { width: 100%; padding: 11px; background: #3B6D11; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #3B6D11; color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; display: none; z-index: 99; white-space: nowrap; }
+  .list-filter { display: flex; gap: 6px; margin-bottom: 10px; }
+  .list-filter input { flex: 1; height: 36px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; padding: 0 10px; background: #f5f5f5; }
+  .list-filter select { height: 36px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; padding: 0 8px; background: #f5f5f5; }
+  .list-item { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .list-item-name { font-size: 14px; font-weight: 500; flex: 1; }
+  .list-item-meta { font-size: 12px; color: #888; }
+  .list-item-total { font-size: 13px; font-weight: 500; color: #27500A; background: #EAF3DE; padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
+  .badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 6px; margin-right: 4px; font-weight: 500; }
+  .badge-wine { background: #FBEAF0; color: #72243E; }
+  .badge-beer { background: #FAEEDA; color: #633806; }
+  .badge-spirits { background: #E6F1FB; color: #0C447C; }
+  .add-btn { width: 100%; padding: 10px; background: #f5f5f5; border: 1px dashed #ccc; border-radius: 8px; color: #888; font-size: 13px; cursor: pointer; margin-bottom: 0.75rem; }
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; align-items: flex-end; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #fff; border-radius: 12px 12px 0 0; padding: 1.25rem; width: 100%; max-height: 90vh; overflow-y: auto; }
+  .modal-title { font-size: 16px; font-weight: 500; margin-bottom: 1rem; }
+  .form-group { margin-bottom: 12px; }
+  .form-label { font-size: 12px; color: #888; margin-bottom: 4px; display: block; }
+  .form-input, .form-select { width: 100%; height: 38px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; padding: 0 10px; background: #f5f5f5; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 1rem; }
+  .modal-actions button { flex: 1; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-cancel { background: #f5f5f5; border: 1px solid #ddd; color: #888; }
+  .btn-save { background: #3B6D11; border: none; color: white; }
+  .empty-state { text-align: center; padding: 2rem 1rem; color: #888; font-size: 14px; }
+  .total-bar { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-bottom: 1rem; }
+  .total-cell { background: #f5f5f5; border-radius: 8px; padding: 10px; text-align: center; }
+  .total-num { font-size: 22px; font-weight: 500; }
+  .total-label { font-size: 11px; color: #888; margin-top: 2px; }
+  .export-card { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 1rem; margin-top: 1rem; }
+  .export-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .export-desc { font-size: 12px; color: #888; margin-bottom: 12px; }
+  .export-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .export-btn { flex: 1; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; text-align: center; }
+  .export-btn-primary { background: #3B6D11; color: white; border: none; }
+  .export-btn-secondary { background: #f5f5f5; color: #333; border: 1px solid #ddd; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="header-logo">
+      <svg viewBox="0 0 24 24"><path d="M12 2C8 2 6 6 6 9c0 2.4 1.1 4.5 2.8 5.8L8 20h8l-.8-5.2C16.9 13.5 18 11.4 18 9c0-3-2-7-6-7zm-1 15.5h2l.3 1H10.7l.3-1z"/></svg>
+    </div>
+    <div>
+      <div class="header-title">Table &amp; Vine</div>
+      <div class="header-sub">Big Y Franklin</div>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab active" id="tab-scan" onclick="switchTab('scan')">Scan</div>
+    <div class="tab" id="tab-inventory" onclick="switchTab('inventory')">Inventory</div>
+    <div class="tab" id="tab-summary" onclick="switchTab('summary')">Summary</div>
+  </div>
+  <div id="view-scan">
+    <div class="scan-area">
+      <div class="scan-row">
+        <input type="text" id="barcode-input" placeholder="Scan or enter barcode..." inputmode="numeric" />
+        <button class="cam-btn" id="cam-btn" onclick="startCamera()">
+          <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7l-1.5-3h-5L8 7"/><circle cx="12" cy="14" r="3"/></svg>
+        </button>
+        <button class="scan-btn" onclick="lookupBarcode()">Look up</button>
+      </div>
+      <div id="unsupported-msg" class="unsupported-msg">Camera barcode scanning not supported on this browser.</div>
+      <div class="scan-hint" id="scan-hint">Tap the camera icon or type a barcode manually</div>
+    </div>
+    <div class="camera-view" id="camera-view">
+      <video id="camera-video" autoplay playsinline muted></video>
+      <div class="camera-overlay"><div class="scan-frame"><div class="scan-line"></div></div></div>
+      <button class="camera-stop" onclick="stopCamera()">Stop</button>
+      <div class="camera-status" id="camera-status">Point at a barcode</div>
+    </div>
+    <div id="product-detail" style="display:none;"></div>
+  </div>
+  <div id="view-inventory" style="display:none;">
+    <div class="list-filter">
+      <input type="text" id="search-input" placeholder="Search products..." oninput="renderList()" />
+      <select id="cat-filter" onchange="renderList()">
+        <option value="">All</option>
+        <option value="Wine">Wine</option>
+        <option value="Beer">Beer</option>
+        <option value="Spirits">Spirits</option>
+      </select>
+    </div>
+    <button class="add-btn" onclick="openAddModal()">+ Add new product</button>
+    <div id="product-list"></div>
+  </div>
+  <div id="view-summary" style="display:none;">
+    <div class="total-bar">
+      <div class="total-cell"><div class="total-num" id="sum-cage">0</div><div class="total-label">Cage</div></div>
+      <div class="total-cell"><div class="total-num" id="sum-shelf">0</div><div class="total-label">Shelf</div></div>
+      <div class="total-cell"><div class="total-num" id="sum-cooler">0</div><div class="total-label">Cooler</div></div>
+    </div>
+    <div id="summary-list"></div>
+    <div class="export-card">
+      <div class="export-title">Export inventory</div>
+      <div class="export-desc">Download a snapshot as CSV.</div>
+      <div class="export-row">
+        <button class="export-btn export-btn-primary" onclick="exportCSV('all')">All products</button>
+        <button class="export-btn export-btn-secondary" onclick="exportCSV('wine')">Wine</button>
+        <button class="export-btn export-btn-secondary" onclick="exportCSV('beer')">Beer</button>
+      </div>
+      <div class="export-row">
+        <button class="export-btn export-btn-secondary" onclick="exportCSV('spirits')">Spirits</button>
+        <button class="export-btn export-btn-secondary" onclick="exportCSV('display')">Display stock</button>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:8px;" id="export-stamp"></div>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="add-modal">
+  <div class="modal">
+    <div class="modal-title">Add product</div>
+    <div class="form-group"><label class="form-label">Barcode (UPC)</label><input class="form-input" type="text" id="new-barcode" inputmode="numeric" placeholder="e.g. 0123456789012" /></div>
+    <div class="form-group"><label class="form-label">Product name</label><input class="form-input" type="text" id="new-name" placeholder="e.g. Whispering Angel Rosé 750ml" /></div>
+    <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="new-cat"><option value="Wine">Wine</option><option value="Beer">Beer</option><option value="Spirits">Spirits</option></select></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+      <button class="btn-save" onclick="saveNewProduct()">Add product</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const STORAGE_KEY = 'tv_inventory_v1';
+let products = loadProducts();
+let currentProduct = null;
+let cameraStream = null;
+let barcodeDetector = null;
+let scanLoop = null;
+let lastScanned = null;
+
+function loadProducts() {
+  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : getSeedData(); } catch(e) { return getSeedData(); }
+}
+function saveProducts() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); } catch(e) {} }
+function getSeedData() {
+  return [
+    { barcode: '0811538010001', name: 'Whispering Angel Rosé 750ml', category: 'Wine', cage: 12, shelf: 6, cooler: 0 },
+    { barcode: '0085000000001', name: 'Sam Adams Boston Lager 12pk', category: 'Beer', cage: 24, shelf: 0, cooler: 8 },
+    { barcode: '0082000750001', name: "Tito's Handmade Vodka 750ml", category: 'Spirits', cage: 18, shelf: 4, cooler: 0 },
+    { barcode: '0080686800750', name: 'Kendall-Jackson Chardonnay 750ml', category: 'Wine', cage: 10, shelf: 8, cooler: 0 },
+    { barcode: '0087000241301', name: 'Blue Moon 6pk', category: 'Beer', cage: 0, shelf: 0, cooler: 12 },
+  ];
+}
+function switchTab(tab) {
+  ['scan','inventory','summary'].forEach(t => {
+    document.getElementById('view-'+t).style.display = t === tab ? 'block' : 'none';
+    document.getElementById('tab-'+t).className = 'tab' + (t === tab ? ' active' : '');
+  });
+  if (tab !== 'scan') stopCamera();
+  if (tab === 'inventory') renderList();
+  if (tab === 'summary') renderSummary();
+}
+async function startCamera() {
+  if (!('BarcodeDetector' in window)) { document.getElementById('unsupported-msg').style.display = 'block'; return; }
+  try {
+    barcodeDetector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39'] });
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('camera-video');
+    video.srcObject = cameraStream;
+    await video.play();
+    document.getElementById('camera-view').classList.add('active');
+    document.getElementById('cam-btn').style.opacity = '0.4';
+    lastScanned = null;
+    scanLoop = setInterval(detectBarcode, 300);
+  } catch(err) { showToast('Camera access denied'); }
+}
+async function detectBarcode() {
+  const video = document.getElementById('camera-video');
+  if (!video || video.readyState < 2) return;
+  try {
+    const barcodes = await barcodeDetector.detect(video);
+    if (barcodes.length > 0) {
+      const code = barcodes[0].rawValue;
+      if (code === lastScanned) return;
+      lastScanned = code;
+      stopCamera();
+      document.getElementById('barcode-input').value = code;
+      setTimeout(() => lookupBarcode(), 200);
+    }
+  } catch(e) {}
+}
+function stopCamera() {
+  if (scanLoop) { clearInterval(scanLoop); scanLoop = null; }
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  document.getElementById('camera-view').classList.remove('active');
+  document.getElementById('cam-btn').style.opacity = '1';
+}
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+function lookupBarcode() {
+  const code = document.getElementById('barcode-input').value.trim();
+  if (!code) return;
+  const p = products.find(x => x.barcode === code);
+  const el = document.getElementById('product-detail');
+  if (p) { showProductDetail(p); }
+  else {
+    el.innerHTML = '<div class="product-card"><div class="product-name" style="color:#888;">Barcode not found</div><div class="product-meta">'+escapeHtml(code)+'</div><button class="save-btn" style="background:#f5f5f5;color:#333;border:1px solid #ddd;" onclick="prefillAdd(\''+escapeHtml(code)+'\')">Add this product</button></div>';
+    el.style.display = 'block';
+  }
+}
+function prefillAdd(barcode) { document.getElementById('new-barcode').value = barcode; openAddModal(); }
+function showProductDetail(p) {
+  currentProduct = p;
+  const bc = 'badge badge-' + p.category.toLowerCase();
+  document.getElementById('product-detail').innerHTML =
+    '<div class="product-card">' +
+      '<div class="product-name">'+escapeHtml(p.name)+'</div>' +
+      '<div class="product-meta"><span class="'+bc+'">'+escapeHtml(p.category)+'</span> '+escapeHtml(p.barcode)+'</div>' +
+      '<div class="loc-grid">' +
+        '<div class="loc-cell"><div class="loc-label">Cage</div><div class="loc-controls"><button class="loc-btn" onclick="adj(\'cage\',-1)">&minus;</button><div class="loc-count" id="cnt-cage">'+p.cage+'</div><button class="loc-btn" onclick="adj(\'cage\',1)">+</button></div></div>' +
+        '<div class="loc-cell"><div class="loc-label">Shelf</div><div class="loc-controls"><button class="loc-btn" onclick="adj(\'shelf\',-1)">&minus;</button><div class="loc-count" id="cnt-shelf">'+p.shelf+'</div><button class="loc-btn" onclick="adj(\'shelf\',1)">+</button></div></div>' +
+        '<div class="loc-cell"><div class="loc-label">Cooler</div><div class="loc-controls"><button class="loc-btn" onclick="adj(\'cooler\',-1)">&minus;</button><div class="loc-count" id="cnt-cooler">'+p.cooler+'</div><button class="loc-btn" onclick="adj(\'cooler\',1)">+</button></div></div>' +
+      '</div>' +
+      '<button class="save-btn" onclick="saveProduct()">Save counts</button>' +
+    '</div>';
+  document.getElementById('product-detail').style.display = 'block';
+}
+function adj(loc, delta) {
+  if (!currentProduct) return;
+  currentProduct[loc] = Math.max(0, currentProduct[loc] + delta);
+  document.getElementById('cnt-' + loc).textContent = currentProduct[loc];
+}
+function saveProduct() {
+  if (!currentProduct) return;
+  const idx = products.findIndex(x => x.barcode === currentProduct.barcode);
+  if (idx >= 0) products[idx] = {...currentProduct};
+  saveProducts();
+  showToast('Saved');
+}
+function renderList() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const cat = document.getElementById('cat-filter').value;
+  const filtered = products.filter(p => (!q || p.name.toLowerCase().includes(q) || p.barcode.includes(q)) && (!cat || p.category === cat));
+  const el = document.getElementById('product-list');
+  if (!filtered.length) { el.innerHTML = '<div class="empty-state">No products found</div>'; return; }
+  el.innerHTML = filtered.map(p => {
+    const total = p.cage + p.shelf + p.cooler;
+    const bc = 'badge badge-' + p.category.toLowerCase();
+    return '<div class="list-item" onclick="selectFromList(\''+escapeHtml(p.barcode)+'\')"><div style="flex:1;"><div class="list-item-name">'+escapeHtml(p.name)+'</div><div class="list-item-meta"><span class="'+bc+'">'+escapeHtml(p.category)+'</span> Cage:'+p.cage+' &middot; Shelf:'+p.shelf+' &middot; Cooler:'+p.cooler+'</div></div><div class="list-item-total">'+total+' total</div></div>';
+  }).join('');
+}
+function selectFromList(barcode) {
+  const p = products.find(x => x.barcode === barcode);
+  if (!p) return;
+  document.getElementById('barcode-input').value = barcode;
+  switchTab('scan');
+  showProductDetail(p);
+}
+function renderSummary() {
+  document.getElementById('sum-cage').textContent = products.reduce((a,p) => a+p.cage, 0);
+  document.getElementById('sum-shelf').textContent = products.reduce((a,p) => a+p.shelf, 0);
+  document.getElementById('sum-cooler').textContent = products.reduce((a,p) => a+p.cooler, 0);
+  const el = document.getElementById('summary-list');
+  el.innerHTML = ['Wine','Beer','Spirits'].map(cat => {
+    const items = products.filter(p => p.category === cat);
+    if (!items.length) return '';
+    const bc = 'badge badge-' + cat.toLowerCase();
+    return '<div style="margin-bottom:1rem;"><div style="font-size:13px;font-weight:500;color:#888;margin-bottom:6px;"><span class="'+bc+'">'+cat+'</span> &mdash; '+items.length+' SKUs</div>'+items.map(p => '<div class="list-item" onclick="selectFromList(\''+escapeHtml(p.barcode)+'\')"><div style="flex:1;"><div class="list-item-name">'+escapeHtml(p.name)+'</div><div class="list-item-meta">Cage:'+p.cage+' &middot; Shelf:'+p.shelf+' &middot; Cooler:'+p.cooler+'</div></div><div class="list-item-total">'+(p.cage+p.shelf+p.cooler)+'</div></div>').join('')+'</div>';
+  }).join('');
+}
+function exportCSV(filter) {
+  let data = [...products], label = 'all';
+  if (filter === 'wine') { data = data.filter(p => p.category==='Wine'); label='wine'; }
+  else if (filter === 'beer') { data = data.filter(p => p.category==='Beer'); label='beer'; }
+  else if (filter === 'spirits') { data = data.filter(p => p.category==='Spirits'); label='spirits'; }
+  else if (filter === 'display') { data = data.filter(p => (p.shelf+p.cooler)>0); label='display'; }
+  const now = new Date();
+  const stamp = now.toISOString().slice(0,10);
+  const time = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  const rows = [['Barcode','Product Name','Category','Cage','Shelf','Cooler','Total','Exported'],...data.map(p=>[p.barcode,'"'+p.name.replace(/"/g,'""')+'"',p.category,p.cage,p.shelf,p.cooler,p.cage+p.shelf+p.cooler,stamp+' '+time])];
+  const blob = new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='table-vine-'+label+'-'+stamp+'.csv'; a.click();
+  document.getElementById('export-stamp').textContent = 'Last exported: '+stamp+' at '+time+' ('+data.length+' products)';
+  showToast('CSV downloaded');
+}
+function openAddModal() { document.getElementById('add-modal').classList.add('open'); }
+function closeAddModal() { document.getElementById('add-modal').classList.remove('open'); document.getElementById('new-barcode').value=''; document.getElementById('new-name').value=''; }
+function saveNewProduct() {
+  const barcode = document.getElementById('new-barcode').value.trim();
+  const name = document.getElementById('new-name').value.trim();
+  const category = document.getElementById('new-cat').value;
+  if (!barcode || !name) { showToast('Enter barcode and name'); return; }
+  if (products.find(p => p.barcode===barcode)) { showToast('Barcode already exists'); return; }
+  products.push({barcode,name,category,cage:0,shelf:0,cooler:0});
+  saveProducts(); closeAddModal(); showToast('Product added'); renderList();
+}
+function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>{t.style.display='none';},2500); }
+document.getElementById('barcode-input').addEventListener('keydown', e => { if(e.key==='Enter') lookupBarcode(); });
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
+</script>
+</body>
+</html>
