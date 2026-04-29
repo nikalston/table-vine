@@ -228,18 +228,64 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
-function lookupBarcode() {
+async function lookupBarcode() {
   const code = document.getElementById('barcode-input').value.trim();
   if (!code) return;
   const p = products.find(x => x.barcode === code);
   const el = document.getElementById('product-detail');
-  if (p) { showProductDetail(p); }
-  else {
-    el.innerHTML = '<div class="product-card"><div class="product-name" style="color:#888;">Barcode not found</div><div class="product-meta">'+escapeHtml(code)+'</div><button class="save-btn" style="background:#f5f5f5;color:#333;border:1px solid #ddd;" onclick="prefillAdd(\''+escapeHtml(code)+'\')">Add this product</button></div>';
-    el.style.display = 'block';
+  if (p) { showProductDetail(p); return; }
+  el.innerHTML = '<div class="product-card"><div class="product-name" style="color:#888;">Looking up barcode&hellip;</div><div class="product-meta">'+escapeHtml(code)+'</div></div>';
+  el.style.display = 'block';
+  const result = await fetchProductInfo(code);
+  if (result) {
+    el.innerHTML = '<div class="product-card"><div class="product-name">'+escapeHtml(result.name)+'</div><div class="product-meta"><span class="badge badge-'+result.category.toLowerCase()+'">'+escapeHtml(result.category)+'</span> '+escapeHtml(code)+'</div><button class="save-btn" onclick="prefillAdd(\''+escapeHtml(code)+'\',\''+escapeHtml(result.name).replace(/'/g,"\\'")+'\',\''+escapeHtml(result.category)+'\')">Add to inventory</button></div>';
+  } else {
+    el.innerHTML = '<div class="product-card"><div class="product-name" style="color:#888;">Product not found</div><div class="product-meta">'+escapeHtml(code)+'</div><button class="save-btn" style="background:#f5f5f5;color:#333;border:1px solid #ddd;" onclick="prefillAdd(\''+escapeHtml(code)+'\')">Add manually</button></div>';
   }
 }
-function prefillAdd(barcode) { document.getElementById('new-barcode').value = barcode; openAddModal(); }
+function detectCategory(product) {
+  const text = [
+    product.product_name || '',
+    product.categories || '',
+    product.categories_tags ? product.categories_tags.join(' ') : ''
+  ].join(' ').toLowerCase();
+  if (/\b(wine|ros[eé]|champagne|prosecco|pinot|chardonnay|cabernet|merlot|sauvignon|riesling|moscato|malbec|zinfandel|shiraz|syrah|bordeaux|burgundy|chianti|sangria)\b/.test(text)) return 'Wine';
+  if (/\b(whiskey|whisky|vodka|rum|gin|tequila|mezcal|bourbon|scotch|brandy|cognac|liqueur|schnapps|absinthe|amaretto|kahlua|baileys|spirit|spirits|vermouth)\b/.test(text)) return 'Spirits';
+  if (/\b(beer|ale|lager|stout|porter|ipa|pilsner|hefeweizen|wheat beer|craft beer|cider|seltzer|malt)\b/.test(text)) return 'Beer';
+  return 'Wine';
+}
+async function fetchProductInfo(barcode) {
+  try {
+    const res = await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(barcode)+'.json');
+    const data = await res.json();
+    if (data.status === 1 && data.product) {
+      const p = data.product;
+      const name = p.product_name || p.product_name_en || '';
+      if (!name) return null;
+      const brand = p.brands || '';
+      const qty = p.quantity || '';
+      const fullName = [brand, name, qty].filter(Boolean).join(' ');
+      return { name: fullName, category: detectCategory(p) };
+    }
+  } catch {}
+  try {
+    const res = await fetch('https://api.upcitemdb.com/prod/trial/lookup?upc='+encodeURIComponent(barcode));
+    const data = await res.json();
+    if (data.items && data.items.length > 0) {
+      const item = data.items[0];
+      const name = item.title || '';
+      if (!name) return null;
+      return { name: name, category: detectCategory({ product_name: name, categories: item.category || '' }) };
+    }
+  } catch {}
+  return null;
+}
+function prefillAdd(barcode, name, category) {
+  document.getElementById('new-barcode').value = barcode || '';
+  document.getElementById('new-name').value = name || '';
+  if (category) document.getElementById('new-cat').value = category;
+  openAddModal();
+}
 function showProductDetail(p) {
   currentProduct = p;
   const bc = 'badge badge-' + p.category.toLowerCase();
