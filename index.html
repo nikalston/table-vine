@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#3B6D11">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root { --tv-accent: #3B6D11; --tv-accent-light: #EAF3DE; --tv-accent-text: #27500A; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,17 +32,9 @@
   .scan-hint { font-size: 12px; color: #888; }
   .camera-view { display: none; margin-bottom: 1rem; border-radius: 12px; overflow: hidden; position: relative; background: #000; }
   .camera-view.active { display: block; }
-  .camera-view video { width: 100%; display: block; max-height: 240px; object-fit: cover; }
-  .camera-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-  .scan-frame { width: 200px; height: 100px; border: 2px solid rgba(255,255,255,0.8); border-radius: 8px; position: relative; }
-  .scan-frame::before, .scan-frame::after { content: ''; position: absolute; width: 20px; height: 20px; border-color: #fff; border-style: solid; }
-  .scan-frame::before { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
-  .scan-frame::after { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
-  .scan-line { position: absolute; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.7); animation: scanline 2s linear infinite; }
-  @keyframes scanline { 0% { top: 0; } 100% { top: 100%; } }
-  .camera-stop { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; pointer-events: all; }
-  .camera-status { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 12px; color: rgba(255,255,255,0.85); pointer-events: none; }
-  .unsupported-msg { background: #f5f5f5; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #888; margin-bottom: 1rem; display: none; }
+  #reader { width: 100%; }
+  #reader video { max-height: 240px; object-fit: cover; }
+  .camera-stop { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; pointer-events: all; z-index: 10; }
   .product-card { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
   .product-name { font-size: 15px; font-weight: 500; margin-bottom: 2px; }
   .product-meta { font-size: 12px; color: #888; margin-bottom: 1rem; }
@@ -115,14 +108,11 @@
         </button>
         <button class="scan-btn" onclick="lookupBarcode()">Look up</button>
       </div>
-      <div id="unsupported-msg" class="unsupported-msg">Camera barcode scanning not supported on this browser.</div>
       <div class="scan-hint" id="scan-hint">Tap the camera icon or type a barcode manually</div>
     </div>
     <div class="camera-view" id="camera-view">
-      <video id="camera-video" autoplay playsinline muted></video>
-      <div class="camera-overlay"><div class="scan-frame"><div class="scan-line"></div></div></div>
+      <div id="reader"></div>
       <button class="camera-stop" onclick="stopCamera()">Stop</button>
-      <div class="camera-status" id="camera-status">Point at a barcode</div>
     </div>
     <div id="product-detail" style="display:none;"></div>
   </div>
@@ -179,10 +169,7 @@
 const STORAGE_KEY = 'tv_inventory_v1';
 let products = loadProducts();
 let currentProduct = null;
-let cameraStream = null;
-let barcodeDetector = null;
-let scanLoop = null;
-let lastScanned = null;
+let html5QrCode = null;
 
 function loadProducts() {
   try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : getSeedData(); } catch(e) { return getSeedData(); }
@@ -207,37 +194,32 @@ function switchTab(tab) {
   if (tab === 'summary') renderSummary();
 }
 async function startCamera() {
-  if (!('BarcodeDetector' in window)) { document.getElementById('unsupported-msg').style.display = 'block'; return; }
+  if (html5QrCode && html5QrCode.isScanning) return;
+  document.getElementById('camera-view').classList.add('active');
+  document.getElementById('cam-btn').style.opacity = '0.4';
+  html5QrCode = new Html5Qrcode('reader');
   try {
-    barcodeDetector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39'] });
-    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    const video = document.getElementById('camera-video');
-    video.srcObject = cameraStream;
-    await video.play();
-    document.getElementById('camera-view').classList.add('active');
-    document.getElementById('cam-btn').style.opacity = '0.4';
-    lastScanned = null;
-    scanLoop = setInterval(detectBarcode, 300);
-  } catch(err) { showToast('Camera access denied'); }
+    await html5QrCode.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 150 }, formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39
+      ]},
+      code => { stopCamera(); document.getElementById('barcode-input').value = code; lookupBarcode(); },
+      () => {}
+    );
+  } catch {
+    showToast('Camera access denied');
+    document.getElementById('camera-view').classList.remove('active');
+    document.getElementById('cam-btn').style.opacity = '1';
+  }
 }
-async function detectBarcode() {
-  const video = document.getElementById('camera-video');
-  if (!video || video.readyState < 2) return;
-  try {
-    const barcodes = await barcodeDetector.detect(video);
-    if (barcodes.length > 0) {
-      const code = barcodes[0].rawValue;
-      if (code === lastScanned) return;
-      lastScanned = code;
-      stopCamera();
-      document.getElementById('barcode-input').value = code;
-      setTimeout(() => lookupBarcode(), 200);
-    }
-  } catch(e) {}
-}
-function stopCamera() {
-  if (scanLoop) { clearInterval(scanLoop); scanLoop = null; }
-  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+async function stopCamera() {
+  if (html5QrCode && html5QrCode.isScanning) {
+    await html5QrCode.stop();
+  }
+  html5QrCode = null;
   document.getElementById('camera-view').classList.remove('active');
   document.getElementById('cam-btn').style.opacity = '1';
 }

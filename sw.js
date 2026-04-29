@@ -1,11 +1,12 @@
-const CACHE_NAME = 'tv-cache-v1';
+const CACHE_NAME = 'tv-cache-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'
 ];
 
 self.addEventListener('install', event => {
