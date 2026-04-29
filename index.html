@@ -69,6 +69,9 @@
   .modal-actions button { flex: 1; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
   .btn-cancel { background: #f5f5f5; border: 1px solid #ddd; color: #888; }
   .btn-save { background: #3B6D11; border: none; color: white; }
+  .btn-delete { background: #fff; border: 1px solid #d33; color: #d33; }
+  .product-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .product-actions button { flex: 1; padding: 9px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
   .empty-state { text-align: center; padding: 2rem 1rem; color: #888; font-size: 14px; }
   .total-bar { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-bottom: 1rem; }
   .total-cell { background: #f5f5f5; border-radius: 8px; padding: 10px; text-align: center; }
@@ -161,6 +164,18 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
       <button class="btn-save" onclick="saveNewProduct()">Add product</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">Edit product</div>
+    <div class="form-group"><label class="form-label">Barcode (UPC)</label><input class="form-input" type="text" id="edit-barcode" disabled style="opacity:0.5;" /></div>
+    <div class="form-group"><label class="form-label">Product name</label><input class="form-input" type="text" id="edit-name" /></div>
+    <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="edit-cat"><option value="Wine">Wine</option><option value="Beer">Beer</option><option value="Spirits">Spirits</option></select></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+      <button class="btn-save" onclick="saveEditProduct()">Save</button>
     </div>
   </div>
 </div>
@@ -299,6 +314,10 @@ function showProductDetail(p) {
         '<div class="loc-cell"><div class="loc-label">Cooler</div><div class="loc-controls"><button class="loc-btn" onclick="adj(\'cooler\',-1)">&minus;</button><div class="loc-count" id="cnt-cooler">'+p.cooler+'</div><button class="loc-btn" onclick="adj(\'cooler\',1)">+</button></div></div>' +
       '</div>' +
       '<button class="save-btn" onclick="saveProduct()">Save counts</button>' +
+      '<div class="product-actions">' +
+        '<button class="btn-cancel" onclick="openEditModal()">Edit</button>' +
+        '<button class="btn-delete" onclick="deleteProduct()">Delete</button>' +
+      '</div>' +
     '</div>';
   document.getElementById('product-detail').style.display = 'block';
 }
@@ -370,6 +389,38 @@ function saveNewProduct() {
   if (products.find(p => p.barcode===barcode)) { showToast('Barcode already exists'); return; }
   products.push({barcode,name,category,cage:0,shelf:0,cooler:0});
   saveProducts(); closeAddModal(); showToast('Product added'); renderList();
+}
+function openEditModal() {
+  if (!currentProduct) return;
+  document.getElementById('edit-barcode').value = currentProduct.barcode;
+  document.getElementById('edit-name').value = currentProduct.name;
+  document.getElementById('edit-cat').value = currentProduct.category;
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
+function saveEditProduct() {
+  if (!currentProduct) return;
+  const name = document.getElementById('edit-name').value.trim();
+  const category = document.getElementById('edit-cat').value;
+  if (!name) { showToast('Name is required'); return; }
+  const idx = products.findIndex(x => x.barcode === currentProduct.barcode);
+  if (idx >= 0) { products[idx].name = name; products[idx].category = category; }
+  currentProduct.name = name;
+  currentProduct.category = category;
+  saveProducts();
+  closeEditModal();
+  showProductDetail(currentProduct);
+  showToast('Product updated');
+}
+function deleteProduct() {
+  if (!currentProduct) return;
+  if (!confirm('Delete "'+currentProduct.name+'"?')) return;
+  products = products.filter(p => p.barcode !== currentProduct.barcode);
+  saveProducts();
+  currentProduct = null;
+  document.getElementById('product-detail').style.display = 'none';
+  document.getElementById('barcode-input').value = '';
+  showToast('Product deleted');
 }
 function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>{t.style.display='none';},2500); }
 document.getElementById('barcode-input').addEventListener('keydown', e => { if(e.key==='Enter') lookupBarcode(); });
