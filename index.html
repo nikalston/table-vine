@@ -258,7 +258,7 @@ async function lookupBarcode() {
     el.innerHTML = '<div class="product-card"><div class="product-name" style="color:#888;">Product not found</div><div class="product-meta">'+escapeHtml(code)+'</div><button class="save-btn" style="background:#f5f5f5;color:#333;border:1px solid #ddd;" onclick="prefillAdd(\''+escapeHtml(code)+'\')">Add manually</button></div>';
   }
 }
-const WORKER_URL = 'https://tv-barcode-lookup.nikalston.workers.dev';
+const WORKER_URL = 'https://tv-barcode-lookup.lucky-moon-ec39.workers.dev';
 function detectCategory(text) {
   const t = text.toLowerCase();
   if (/\b(wine|ros[eé]|champagne|prosecco|pinot|chardonnay|cabernet|merlot|sauvignon|riesling|moscato|malbec|zinfandel|shiraz|syrah|bordeaux|burgundy|chianti|sangria)\b/.test(t)) return 'Wine';
