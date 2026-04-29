@@ -258,18 +258,22 @@ async function lookupBarcode() {
     el.innerHTML = '<div class="product-card"><div class="product-name" style="color:#888;">Product not found</div><div class="product-meta">'+escapeHtml(code)+'</div><button class="save-btn" style="background:#f5f5f5;color:#333;border:1px solid #ddd;" onclick="prefillAdd(\''+escapeHtml(code)+'\')">Add manually</button></div>';
   }
 }
-function detectCategory(product) {
-  const text = [
-    product.product_name || '',
-    product.categories || '',
-    product.categories_tags ? product.categories_tags.join(' ') : ''
-  ].join(' ').toLowerCase();
-  if (/\b(wine|ros[eé]|champagne|prosecco|pinot|chardonnay|cabernet|merlot|sauvignon|riesling|moscato|malbec|zinfandel|shiraz|syrah|bordeaux|burgundy|chianti|sangria)\b/.test(text)) return 'Wine';
-  if (/\b(whiskey|whisky|vodka|rum|gin|tequila|mezcal|bourbon|scotch|brandy|cognac|liqueur|schnapps|absinthe|amaretto|kahlua|baileys|spirit|spirits|vermouth)\b/.test(text)) return 'Spirits';
-  if (/\b(beer|ale|lager|stout|porter|ipa|pilsner|hefeweizen|wheat beer|craft beer|cider|seltzer|malt)\b/.test(text)) return 'Beer';
+const WORKER_URL = 'https://tv-barcode-lookup.nikalston.workers.dev';
+function detectCategory(text) {
+  const t = text.toLowerCase();
+  if (/\b(wine|ros[eé]|champagne|prosecco|pinot|chardonnay|cabernet|merlot|sauvignon|riesling|moscato|malbec|zinfandel|shiraz|syrah|bordeaux|burgundy|chianti|sangria)\b/.test(t)) return 'Wine';
+  if (/\b(whiskey|whisky|vodka|rum|gin|tequila|mezcal|bourbon|scotch|brandy|cognac|liqueur|schnapps|absinthe|amaretto|kahlua|baileys|spirit|spirits|vermouth)\b/.test(t)) return 'Spirits';
+  if (/\b(beer|ale|lager|stout|porter|ipa|pilsner|hefeweizen|wheat beer|craft beer|cider|seltzer|malt)\b/.test(t)) return 'Beer';
   return 'Wine';
 }
 async function fetchProductInfo(barcode) {
+  // Try Cloudflare Worker (UPC Database + Open Food Facts server-side)
+  try {
+    const res = await fetch(WORKER_URL+'?barcode='+encodeURIComponent(barcode));
+    const data = await res.json();
+    if (data.found) return { name: data.name, category: data.category };
+  } catch {}
+  // Direct fallback to Open Food Facts if worker is down
   try {
     const res = await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(barcode)+'.json');
     const data = await res.json();
@@ -280,17 +284,7 @@ async function fetchProductInfo(barcode) {
       const brand = p.brands || '';
       const qty = p.quantity || '';
       const fullName = [brand, name, qty].filter(Boolean).join(' ');
-      return { name: fullName, category: detectCategory(p) };
-    }
-  } catch {}
-  try {
-    const res = await fetch('https://api.upcitemdb.com/prod/trial/lookup?upc='+encodeURIComponent(barcode));
-    const data = await res.json();
-    if (data.items && data.items.length > 0) {
-      const item = data.items[0];
-      const name = item.title || '';
-      if (!name) return null;
-      return { name: name, category: detectCategory({ product_name: name, categories: item.category || '' }) };
+      return { name: fullName, category: detectCategory([name, p.categories || ''].join(' ')) };
     }
   } catch {}
   return null;
