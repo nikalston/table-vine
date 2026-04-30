@@ -22,7 +22,8 @@ async function lookupBarcode(barcode, env) {
   if (upcDbKey) {
     try {
       const res = await fetch(
-        `https://api.upcdatabase.org/product/${barcode}?apikey=${upcDbKey}`
+        `https://api.upcdatabase.org/product/${barcode}`,
+        { headers: { 'Authorization': `Bearer ${upcDbKey}` } }
       );
       if (res.ok) {
         const data = await res.json();
